@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html manifest="deposit.appcache">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="押金">
+<title>押金系統</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,"PingFang TC","Heiti TC",sans-serif;background:#f2f2f2;color:#222;font-size:20px}
+#top{background:#2b6cb0;color:#fff;padding:14px 16px;overflow:hidden}
+#top b{font-size:30px}
+#top span.r{float:right;font-size:16px;margin-top:10px}
+#tabs{overflow:hidden;background:#fff;border-bottom:1px solid #ccc}
+#tabs div{float:left;width:25%;text-align:center;padding:16px 0;font-size:20px;color:#555}
+#tabs div.on{color:#2b6cb0;font-weight:bold;border-bottom:4px solid #2b6cb0}
+.page{display:none;padding:16px}
+.page.on{display:block}
+label{display:block;margin:12px 0 4px;color:#555;font-size:17px}
+input{width:100%;font-size:24px;padding:12px;border:1px solid #bbb;border-radius:8px;-webkit-appearance:none;background:#fff}
+.btn{display:block;width:100%;padding:18px;margin-top:18px;font-size:22px;border:0;border-radius:10px;background:#2b6cb0;color:#fff;text-align:center;-webkit-appearance:none}
+.btn.g{background:#2f855a}.btn.x{background:#888}.btn.red{background:#c53030}
+.row{background:#fff;border-radius:10px;padding:12px 14px;margin-top:10px;overflow:hidden}
+.row .no{color:#2b6cb0;font-weight:bold;margin-right:8px}
+.row .nm{font-size:24px;font-weight:bold}
+.row .sub{color:#777;font-size:16px;margin-top:4px}
+.row .act{float:right;padding:12px 18px;border-radius:8px;background:#2f855a;color:#fff;font-size:20px;margin-left:8px}
+.row .act.del{background:#bbb}
+.row img{display:block;margin-top:6px;max-width:100%;height:70px;border:1px solid #eee;background:#fff}
+.tag{display:inline-block;font-size:14px;padding:2px 8px;border-radius:6px;background:#e2e8f0;margin-left:6px}
+.tag.ok{background:#c6f6d5}
+#mask{display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9}
+#sheet{position:absolute;left:3%;right:3%;top:5%;background:#fff;border-radius:12px;padding:16px}
+#pad{display:block;width:100%;height:260px;border:2px dashed #999;border-radius:8px;background:#fff;touch-action:none}
+.half{width:48%;display:inline-block}
+.small{font-size:15px;color:#777}
+textarea{width:100%;height:160px;font-size:12px}
+table{width:100%;border-collapse:collapse;background:#fff;margin-top:10px;font-size:18px}
+td,th{border-bottom:1px solid #eee;padding:10px 8px;text-align:right}
+td:first-child,th:first-child{text-align:left}
+th{background:#edf2f7;font-size:16px;color:#555}
+.big{font-size:28px;font-weight:bold}
+.box{float:left;width:32%;text-align:center;background:#fff;border-radius:10px;padding:12px 0;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="top">金庫：<b id="vault">0</b> 元<span class="r" id="cnt"></span></div>
+<div id="tabs"><div data-p="pIn" class="on">收押金</div><div data-p="pOut">退押金</div><div data-p="pSum">統計</div><div data-p="pLog">紀錄/設定</div></div>
+
+<div class="page on" id="pIn">
+  <label>病人姓名（日期自動為今天，押金 <span id="amtShow">200</span> 元）</label><input id="inName" autocomplete="off" autocorrect="off">
+  <div class="btn" id="btnAdd">收押金（金庫 +）</div>
+  <div id="lastAdd"></div>
+</div>
+
+<div class="page" id="pOut">
+  <input id="q" placeholder="輸入姓名或單號搜尋" autocomplete="off">
+  <div id="list"></div>
+</div>
+
+<div class="page" id="pSum">
+  <div><div class="box">金庫<div class="big" id="sVault"></div></div>
+  <div class="box" style="margin:10px 2% 0">未退押金<div class="big" id="sOpen"></div></div>
+  <div class="box">今日淨額<div class="big" id="sToday"></div></div></div>
+  <div class="small" id="sCheck" style="clear:both;padding-top:8px"></div>
+  <label>每日統計（最近 31 天）</label>
+  <table id="tDay"></table>
+  <label>每月統計</label>
+  <table id="tMon"></table>
+</div>
+
+<div class="page" id="pLog">
+  <div class="row">
+    <div>手動調整金庫（存入填正數、取出填負數）</div>
+    <input id="adj" type="number" placeholder="例如 1000 或 -500">
+    <div class="btn" id="btnAdj">調整金庫</div>
+  </div>
+  <div class="row">
+    <div>每筆押金金額</div>
+    <input id="defAmt" type="number">
+    <div class="btn x" id="btnAmt">儲存金額</div>
+  </div>
+  <label>已退款紀錄（最新在上）</label>
+  <input id="q2" placeholder="搜尋姓名或單號" autocomplete="off">
+  <div id="done"></div>
+  <div class="row">
+    <div>備份：把下面文字全選複製，貼到「備忘錄」保存。還原時貼回去按「還原」。</div>
+    <div class="btn x" id="btnExp">產生備份文字</div>
+    <textarea id="bak"></textarea>
+    <div class="btn red" id="btnImp">用上面文字還原（會覆蓋現有資料）</div>
+    <div class="small" id="usage"></div>
+  </div>
+</div>
+
+<div id="mask"><div id="sheet">
+  <div id="sInfo" style="font-size:22px"></div>
+  <div class="small">請病人在框內簽名</div>
+  <canvas id="pad"></canvas>
+  <div class="btn x half" id="btnClr">重簽</div>
+  <div class="btn x half" id="btnCancel" style="float:right">取消</div>
+  <div class="btn g" id="btnOk">確認退款（金庫 −）</div>
+</div></div>
+
+<script>
+var KEY = 'depositDB_v1';
+var db, canStore = true;
+try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); db = JSON.parse(localStorage.getItem(KEY)); }
+catch (e) { canStore = false; }
+if (!db) db = { vault: 0, seq: 0, items: [], adj: [] };
+if (!db.amt) db.amt = 200;
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+function today() { var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function now() { var d = new Date(); return today() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+function save() {
+  if (!canStore) return true;
+  try { localStorage.setItem(KEY, JSON.stringify(db)); return true; }
+  catch (e) { alert('儲存失敗！空間可能已滿，請先備份。（若開了「私密瀏覽」請關掉）'); return false; }
+}
+function render() {
+  $('vault').innerHTML = db.vault;
+  var open = 0, i;
+  for (i = 0; i < db.items.length; i++) if (!db.items[i].ret) open++;
+  $('cnt').innerHTML = '未退押金 ' + open + ' 筆';
+  $('amtShow').innerHTML = db.amt; $('defAmt').value = db.amt;
+  renderList(); renderDone(); renderSum();
+}
+function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function renderSum() {
+  var day = {}, mon = {}, open = 0, openN = 0, adjSum = 0, i, it, k, d, m;
+  function add(map, key, f, v) { if (!map[key]) map[key] = { inN: 0, inA: 0, outN: 0, outA: 0 }; map[key][f + 'N']++; map[key][f + 'A'] += v; }
+  for (i = 0; i < db.items.length; i++) {
+    it = db.items[i];
+    add(day, it.date, 'in', it.amt); add(mon, it.date.substr(0, 7), 'in', it.amt);
+    if (it.ret) { d = it.ret.substr(0, 10); add(day, d, 'out', it.amt); add(mon, d.substr(0, 7), 'out', it.amt); }
+    else { open += it.amt; openN++; }
+  }
+  for (i = 0; i < db.adj.length; i++) adjSum += db.adj[i].v;
+  var t = day[today()] || { inA: 0, outA: 0 };
+  $('sVault').innerHTML = money(db.vault);
+  $('sOpen').innerHTML = money(open) + '<div class="small">' + openN + ' 筆</div>';
+  $('sToday').innerHTML = (t.inA - t.outA >= 0 ? '+' : '') + money(t.inA - t.outA);
+  $('sCheck').innerHTML = '對帳：手動調整合計 ' + money(adjSum) + ' + 未退押金 ' + money(open) + ' = ' + money(adjSum + open) +
+    (adjSum + open === db.vault ? '　✔ 與金庫相符' : '　⚠ 與金庫不符，請檢查');
+  function table(map, keys, title) {
+    var h = '<tr><th>' + title + '</th><th>收 筆/元</th><th>退 筆/元</th><th>淨額</th></tr>', j, x;
+    for (j = 0; j < keys.length; j++) {
+      x = map[keys[j]] || { inN: 0, inA: 0, outN: 0, outA: 0 };
+      h += '<tr><td>' + keys[j] + '</td><td>' + x.inN + ' / ' + money(x.inA) + '</td><td>' + x.outN + ' / ' + money(x.outA) + '</td><td>' + money(x.inA - x.outA) + '</td></tr>';
+    }
+    return h;
+  }
+  var dk = [], base = new Date(), dt;
+  for (i = 0; i < 31; i++) {
+    dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
+    k = dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+    if (day[k] || i === 0) dk.push(k);
+  }
+  var mk = []; for (k in mon) mk.push(k); mk.sort().reverse();
+  $('tDay').innerHTML = table(day, dk, '日期');
+  $('tMon').innerHTML = table(mon, mk.length ? mk : [today().substr(0, 7)], '月份');
+}
+function match(it, q) { return !q || it.name.indexOf(q) >= 0 || String(it.id) === q.replace(/^0+/, ''); }
+function renderList() {
+  var q = $('q').value.replace(/\s/g, ''), h = '', n = 0, i, it;
+  for (i = db.items.length - 1; i >= 0; i--) {
+    it = db.items[i];
+    if (it.ret || !match(it, q)) continue;
+    if (++n > 100) break;
+    h += '<div class="row"><span class="act" data-ret="' + it.id + '">退款</span><span class="act del" data-del="' + it.id + '">刪除</span>' +
+      '<span class="no">#' + it.id + '</span><span class="nm">' + esc(it.name) + '</span>' +
+      '<div class="sub">' + it.date + '　押金 ' + it.amt + ' 元</div></div>';
+  }
+  $('list').innerHTML = h || '<div class="row small">沒有符合的未退押金</div>';
+}
+function renderDone() {
+  var q = $('q2').value.replace(/\s/g, ''), h = '', n = 0, i, it;
+  for (i = db.items.length - 1; i >= 0; i--) {
+    it = db.items[i];
+    if (!it.ret || !match(it, q)) continue;
+    if (++n > 50) break;
+    h += '<div class="row"><span class="no">#' + it.id + '</span><span class="nm">' + esc(it.name) + '</span><span class="tag ok">已退</span>' +
+      '<div class="sub">收：' + it.date + '　退：' + it.ret + '　' + it.amt + ' 元</div>' +
+      (it.sig ? '<img src="' + it.sig + '">' : '') + '</div>';
+  }
+  $('done').innerHTML = h || '<div class="row small">沒有紀錄</div>';
+}
+function find(id) { for (var i = 0; i < db.items.length; i++) if (db.items[i].id == id) return db.items[i]; }
+
+// tabs
+var tabs = $('tabs').getElementsByTagName('div');
+for (var t = 0; t < tabs.length; t++) tabs[t].onclick = function () {
+  for (var k = 0; k < tabs.length; k++) { tabs[k].className = ''; $(tabs[k].getAttribute('data-p')).className = 'page'; }
+  this.className = 'on'; $(this.getAttribute('data-p')).className = 'page on';
+  render();
+};
+
+// 收押金
+$('inName').onkeydown = function (e) { if (e.keyCode === 13) { e.preventDefault(); addDeposit(); } };
+$('btnAdd').onclick = addDeposit;
+function addDeposit() {
+  var name = $('inName').value.replace(/^\s+|\s+$/g, ''), amt = db.amt;
+  if (!name) { alert('請輸入姓名'); return false; }
+  db.seq++;
+  var it = { id: db.seq, name: name, date: today(), amt: amt, ret: '', sig: '' };
+  db.items.push(it); db.vault += amt;
+  if (!save()) { db.items.pop(); db.vault -= amt; db.seq--; return false; }
+  $('lastAdd').innerHTML = '<div class="row"><span class="no">#' + it.id + '</span><span class="nm">' + esc(name) + '</span> 已收 ' + amt + ' 元<div class="sub">請把單號 <b>#' + it.id + '</b> 寫在單據上</div></div>';
+  $('inName').value = ''; $('inName').blur();
+  render(); return false;
+};
+$('btnAmt').onclick = function () {
+  var v = parseInt($('defAmt').value, 10);
+  if (!(v > 0)) { alert('金額不正確'); return; }
+  db.amt = v; save(); render(); alert('之後每筆押金為 ' + v + ' 元');
+};
+
+// 搜尋
+$('q').oninput = renderList; $('q2').oninput = renderDone;
+$('list').onclick = function (e) {
+  var el = e.target, id;
+  if ((id = el.getAttribute('data-ret'))) openSign(find(id));
+  else if ((id = el.getAttribute('data-del'))) {
+    var it = find(id);
+    if (confirm('刪除 #' + it.id + ' ' + it.name + '（輸入錯誤用）？金庫會 −' + it.amt)) {
+      db.items.splice(db.items.indexOf(it), 1); db.vault -= it.amt; save(); render();
+    }
+  }
+};
+
+// 簽名
+var cv = $('pad'), ctx, drawing = false, signed = false, cur = null, last, inkLen = 0;
+function openSign(it) {
+  cur = it; $('mask').style.display = 'block';
+  $('sInfo').innerHTML = '#' + it.id + '　<b>' + esc(it.name) + '</b>　退 ' + it.amt + ' 元';
+  cv.width = cv.offsetWidth; cv.height = cv.offsetHeight;
+  ctx = cv.getContext('2d'); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000';
+  signed = false; inkLen = 0;
+}
+function pos(e) {
+  var r = cv.getBoundingClientRect(), p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX - r.left, y: p.clientY - r.top };
+}
+function start(e) { e.preventDefault(); drawing = true; last = pos(e); ctx.beginPath(); ctx.arc(last.x, last.y, 1.5, 0, 7); ctx.fill(); signed = true; }
+function move(e) {
+  if (!drawing) return; e.preventDefault();
+  var p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+  inkLen += Math.abs(p.x - last.x) + Math.abs(p.y - last.y); last = p;
+}
+function end() { drawing = false; }
+cv.addEventListener('touchstart', start); cv.addEventListener('touchmove', move); cv.addEventListener('touchend', end);
+cv.addEventListener('mousedown', start); cv.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+$('btnClr').onclick = function () { ctx.clearRect(0, 0, cv.width, cv.height); signed = false; inkLen = 0; };
+$('btnCancel').onclick = function () { $('mask').style.display = 'none'; cur = null; };
+$('btnOk').onclick = function () {
+  if (!signed || inkLen < 80) { alert('沒有簽名不能退款，請病人在框內簽名'); return; }
+  // 縮小簽名圖以節省空間
+  var s = document.createElement('canvas'); s.width = 300; s.height = Math.round(300 * cv.height / cv.width);
+  var c2 = s.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, s.width, s.height);
+  c2.drawImage(cv, 0, 0, s.width, s.height);
+  cur.sig = s.toDataURL('image/jpeg', 0.6); cur.ret = now(); db.vault -= cur.amt;
+  if (!save()) { cur.sig = ''; cur.ret = ''; db.vault += cur.amt; return; }
+  $('mask').style.display = 'none'; $('q').value = ''; cur = null; render();
+};
+
+// 設定
+$('btnAdj').onclick = function () {
+  var v = parseInt($('adj').value, 10);
+  if (!v) return;
+  if (!confirm('金庫 ' + (v > 0 ? '+' : '') + v + ' ？')) return;
+  db.vault += v; db.adj.push({ t: now(), v: v }); save(); $('adj').value = ''; render();
+};
+$('btnExp').onclick = function () {
+  $('bak').value = JSON.stringify(db);
+  $('usage').innerHTML = '目前資料約 ' + Math.round($('bak').value.length / 1024) + ' KB（上限約 2500 KB）';
+};
+$('btnImp').onclick = function () {
+  var d; try { d = JSON.parse($('bak').value); } catch (e) {}
+  if (!d || !d.items) { alert('備份文字不正確'); return; }
+  if (!confirm('確定覆蓋現有資料？')) return;
+  db = d; save(); render(); alert('已還原');
+};
+if (!canStore) {
+  var w = document.createElement('div');
+  w.style.cssText = 'background:#c53030;color:#fff;padding:10px 16px;font-size:16px';
+  w.innerHTML = '預覽模式：這裡無法儲存資料，關掉就會消失。請在 iPad 的 Safari 開啟並加入主畫面使用。';
+  document.body.insertBefore(w, document.body.firstChild);
+}
+render();
+</script>
+</body>
+</html>
