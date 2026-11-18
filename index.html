@@ -41,6 +41,10 @@ td,th{border-bottom:1px solid #eee;padding:10px 8px;text-align:right}
 td:first-child,th:first-child{text-align:left}
 th{background:#edf2f7;font-size:16px;color:#555}
 .big{font-size:28px;font-weight:bold}
+.chips{overflow:hidden;margin-top:6px}
+.chip{float:left;width:32%;margin:4px 0 0 2%;padding:12px 0;text-align:center;border:2px solid #2b6cb0;border-radius:8px;color:#2b6cb0;background:#fff;font-size:20px}
+.chip:nth-child(3n+1){margin-left:0}
+.chip.on{background:#2b6cb0;color:#fff;font-weight:bold}
 .box{float:left;width:32%;text-align:center;background:#fff;border-radius:10px;padding:12px 0;margin-top:10px}
 </style>
 </head>
@@ -49,13 +53,14 @@ th{background:#edf2f7;font-size:16px;color:#555}
 <div id="tabs"><div data-p="pIn" class="on">收押金</div><div data-p="pOut">退押金</div><div data-p="pSum">統計</div><div data-p="pLog">紀錄/設定</div></div>
 
 <div class="page on" id="pIn">
-  <label>病人姓名（日期自動為今天，押金 <span id="amtShow">200</span> 元）</label><input id="inName" autocomplete="off" autocorrect="off">
+  <label>收款經手人：<b id="curIn"></b></label><div class="chips" id="staffIn"></div>
+  <label>病人姓名＋病歷號（例：王小明 12345，病歷號可不填；日期自動為今天，押金 <span id="amtShow">200</span> 元）</label><input id="inName" autocomplete="off" autocorrect="off">
   <div class="btn" id="btnAdd">收押金（金庫 +）</div>
   <div id="lastAdd"></div>
 </div>
 
 <div class="page" id="pOut">
-  <input id="q" placeholder="輸入姓名或單號搜尋" autocomplete="off">
+  <input id="q" placeholder="輸入姓名、病歷號或單號搜尋" autocomplete="off">
   <div id="list"></div>
 </div>
 
@@ -68,6 +73,10 @@ th{background:#edf2f7;font-size:16px;color:#555}
   <table id="tDay"></table>
   <label>每月統計</label>
   <table id="tMon"></table>
+  <label>今日依經手人</label>
+  <table id="tStaffDay"></table>
+  <label>本月依經手人</label>
+  <table id="tStaffMon"></table>
 </div>
 
 <div class="page" id="pLog">
@@ -77,12 +86,17 @@ th{background:#edf2f7;font-size:16px;color:#555}
     <div class="btn" id="btnAdj">調整金庫</div>
   </div>
   <div class="row">
+    <div>經手人名單（用「、」分開）</div>
+    <input id="staffList">
+    <div class="btn x" id="btnStaff">儲存名單</div>
+  </div>
+  <div class="row">
     <div>每筆押金金額</div>
     <input id="defAmt" type="number">
     <div class="btn x" id="btnAmt">儲存金額</div>
   </div>
   <label>已退款紀錄（最新在上）</label>
-  <input id="q2" placeholder="搜尋姓名或單號" autocomplete="off">
+  <input id="q2" placeholder="搜尋姓名、病歷號或單號" autocomplete="off">
   <div id="done"></div>
   <div class="row">
     <div>備份：把下面文字全選複製，貼到「備忘錄」保存。還原時貼回去按「還原」。</div>
@@ -97,6 +111,7 @@ th{background:#edf2f7;font-size:16px;color:#555}
   <div id="sInfo" style="font-size:22px"></div>
   <div class="small">請病人在框內簽名</div>
   <canvas id="pad"></canvas>
+  <div class="small" style="margin-top:8px">還款經手人：<b id="curOut"></b></div><div class="chips" id="staffOut"></div>
   <div class="btn x half" id="btnClr">重簽</div>
   <div class="btn x half" id="btnCancel" style="float:right">取消</div>
   <div class="btn g" id="btnOk">確認退款（金庫 −）</div>
@@ -108,7 +123,13 @@ var db, canStore = true;
 try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); db = JSON.parse(localStorage.getItem(KEY)); }
 catch (e) { canStore = false; }
 if (!db) db = { vault: 0, seq: 0, items: [], adj: [] };
+function fix() {
+if (!db.adj) db.adj = [];
 if (!db.amt) db.amt = 200;
+if (!db.staff) db.staff = ['蔡云浩', '陳冠華', '張申朋', '黃靖淳', '許晨琪', '楊忠倪'];
+if (db.cur === undefined) db.cur = '';
+}
+fix();
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -126,8 +147,25 @@ function render() {
   for (i = 0; i < db.items.length; i++) if (!db.items[i].ret) open++;
   $('cnt').innerHTML = '未退押金 ' + open + ' 筆';
   $('amtShow').innerHTML = db.amt; $('defAmt').value = db.amt;
+  $('staffList').value = db.staff.join('、');
+  renderStaff();
   renderList(); renderDone(); renderSum();
 }
+function renderStaff() {
+  var h = '', i;
+  for (i = 0; i < db.staff.length; i++)
+    h += '<div class="chip' + (db.staff[i] === db.cur ? ' on' : '') + '" data-staff="' + esc(db.staff[i]) + '">' + esc(db.staff[i]) + '</div>';
+  $('staffIn').innerHTML = h; $('staffOut').innerHTML = h;
+  var c = db.cur || '<span style="color:#c53030">請點選</span>';
+  $('curIn').innerHTML = db.cur ? esc(db.cur) : c; $('curOut').innerHTML = db.cur ? esc(db.cur) : c;
+}
+function pickStaff(e) {
+  var n = e.target.getAttribute('data-staff');
+  if (n === null) return;
+  db.cur = n; save(); renderStaff();
+}
+function nameHtml(it) { return '<span class="nm">' + esc(it.name) + '</span>' + (it.chart ? '<span class="tag">病歷 ' + esc(it.chart) + '</span>' : ''); }
+function by(n) { return n ? '（' + esc(n) + '）' : ''; }
 function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 function renderSum() {
   var day = {}, mon = {}, open = 0, openN = 0, adjSum = 0, i, it, k, d, m;
@@ -162,8 +200,24 @@ function renderSum() {
   var mk = []; for (k in mon) mk.push(k); mk.sort().reverse();
   $('tDay').innerHTML = table(day, dk, '日期');
   $('tMon').innerHTML = table(mon, mk.length ? mk : [today().substr(0, 7)], '月份');
+  // 依經手人
+  var sd = {}, sm = {}, td = today(), tm = td.substr(0, 7), names = db.staff.slice(0);
+  function addS(n) { if (n && names.indexOf(n) < 0) names.push(n); }
+  for (i = 0; i < db.items.length; i++) {
+    it = db.items[i];
+    if (it.date === td) add(sd, it.inBy || '（未記錄）', 'in', it.amt);
+    if (it.date.substr(0, 7) === tm) add(sm, it.inBy || '（未記錄）', 'in', it.amt);
+    if (it.ret) {
+      if (it.ret.substr(0, 10) === td) add(sd, it.outBy || '（未記錄）', 'out', it.amt);
+      if (it.ret.substr(0, 7) === tm) add(sm, it.outBy || '（未記錄）', 'out', it.amt);
+    }
+    addS(it.inBy); addS(it.outBy);
+  }
+  function keysOf(map) { var a = [], j; for (j = 0; j < names.length; j++) if (map[names[j]]) a.push(names[j]); if (map['（未記錄）']) a.push('（未記錄）'); return a.length ? a : names; }
+  $('tStaffDay').innerHTML = table(sd, keysOf(sd), '經手人');
+  $('tStaffMon').innerHTML = table(sm, keysOf(sm), '經手人');
 }
-function match(it, q) { return !q || it.name.indexOf(q) >= 0 || String(it.id) === q.replace(/^0+/, ''); }
+function match(it, q) { return !q || it.name.indexOf(q) >= 0 || (it.chart && it.chart.indexOf(q) >= 0) || String(it.id) === q.replace(/^0+/, ''); }
 function renderList() {
   var q = $('q').value.replace(/\s/g, ''), h = '', n = 0, i, it;
   for (i = db.items.length - 1; i >= 0; i--) {
@@ -171,8 +225,8 @@ function renderList() {
     if (it.ret || !match(it, q)) continue;
     if (++n > 100) break;
     h += '<div class="row"><span class="act" data-ret="' + it.id + '">退款</span><span class="act del" data-del="' + it.id + '">刪除</span>' +
-      '<span class="no">#' + it.id + '</span><span class="nm">' + esc(it.name) + '</span>' +
-      '<div class="sub">' + it.date + '　押金 ' + it.amt + ' 元</div></div>';
+      '<span class="no">#' + it.id + '</span>' + nameHtml(it) +
+      '<div class="sub">' + it.date + by(it.inBy) + '　押金 ' + it.amt + ' 元</div></div>';
   }
   $('list').innerHTML = h || '<div class="row small">沒有符合的未退押金</div>';
 }
@@ -182,8 +236,8 @@ function renderDone() {
     it = db.items[i];
     if (!it.ret || !match(it, q)) continue;
     if (++n > 50) break;
-    h += '<div class="row"><span class="no">#' + it.id + '</span><span class="nm">' + esc(it.name) + '</span><span class="tag ok">已退</span>' +
-      '<div class="sub">收：' + it.date + '　退：' + it.ret + '　' + it.amt + ' 元</div>' +
+    h += '<div class="row"><span class="no">#' + it.id + '</span>' + nameHtml(it) + '<span class="tag ok">已退</span>' +
+      '<div class="sub">收：' + it.date + by(it.inBy) + '　退：' + it.ret + by(it.outBy) + '　' + it.amt + ' 元</div>' +
       (it.sig ? '<img src="' + it.sig + '">' : '') + '</div>';
   }
   $('done').innerHTML = h || '<div class="row small">沒有紀錄</div>';
@@ -202,13 +256,16 @@ for (var t = 0; t < tabs.length; t++) tabs[t].onclick = function () {
 $('inName').onkeydown = function (e) { if (e.keyCode === 13) { e.preventDefault(); addDeposit(); } };
 $('btnAdd').onclick = addDeposit;
 function addDeposit() {
-  var name = $('inName').value.replace(/^\s+|\s+$/g, ''), amt = db.amt;
+  var raw = $('inName').value.replace(/^\s+|\s+$/g, ''), amt = db.amt, name = raw, chart = '';
+  var m = raw.match(/^(.*?)\s*(\d+)$/);
+  if (m) { name = m[1].replace(/\s+$/, ''); chart = m[2]; }
   if (!name) { alert('請輸入姓名'); return false; }
+  if (!db.cur) { alert('請先點選收款經手人'); return false; }
   db.seq++;
-  var it = { id: db.seq, name: name, date: today(), amt: amt, ret: '', sig: '' };
+  var it = { id: db.seq, name: name, chart: chart, date: today(), amt: amt, ret: '', sig: '', inBy: db.cur };
   db.items.push(it); db.vault += amt;
   if (!save()) { db.items.pop(); db.vault -= amt; db.seq--; return false; }
-  $('lastAdd').innerHTML = '<div class="row"><span class="no">#' + it.id + '</span><span class="nm">' + esc(name) + '</span> 已收 ' + amt + ' 元<div class="sub">請把單號 <b>#' + it.id + '</b> 寫在單據上</div></div>';
+  $('lastAdd').innerHTML = '<div class="row"><span class="no">#' + it.id + '</span>' + nameHtml(it) + ' 已收 ' + amt + ' 元' + by(it.inBy) + '<div class="sub">請把單號 <b>#' + it.id + '</b> 寫在單據上</div></div>';
   $('inName').value = ''; $('inName').blur();
   render(); return false;
 };
@@ -235,7 +292,7 @@ $('list').onclick = function (e) {
 var cv = $('pad'), ctx, drawing = false, signed = false, cur = null, last, inkLen = 0;
 function openSign(it) {
   cur = it; $('mask').style.display = 'block';
-  $('sInfo').innerHTML = '#' + it.id + '　<b>' + esc(it.name) + '</b>　退 ' + it.amt + ' 元';
+  $('sInfo').innerHTML = '#' + it.id + '　<b>' + esc(it.name) + '</b>' + (it.chart ? '　病歷 ' + esc(it.chart) : '') + '　退 ' + it.amt + ' 元';
   cv.width = cv.offsetWidth; cv.height = cv.offsetHeight;
   ctx = cv.getContext('2d'); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000';
   signed = false; inkLen = 0;
@@ -257,16 +314,27 @@ $('btnClr').onclick = function () { ctx.clearRect(0, 0, cv.width, cv.height); si
 $('btnCancel').onclick = function () { $('mask').style.display = 'none'; cur = null; };
 $('btnOk').onclick = function () {
   if (!signed || inkLen < 80) { alert('沒有簽名不能退款，請病人在框內簽名'); return; }
+  if (!db.cur) { alert('請先點選還款經手人'); return; }
   // 縮小簽名圖以節省空間
   var s = document.createElement('canvas'); s.width = 300; s.height = Math.round(300 * cv.height / cv.width);
   var c2 = s.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, s.width, s.height);
   c2.drawImage(cv, 0, 0, s.width, s.height);
-  cur.sig = s.toDataURL('image/jpeg', 0.6); cur.ret = now(); db.vault -= cur.amt;
-  if (!save()) { cur.sig = ''; cur.ret = ''; db.vault += cur.amt; return; }
+  cur.sig = s.toDataURL('image/jpeg', 0.6); cur.ret = now(); cur.outBy = db.cur; db.vault -= cur.amt;
+  if (!save()) { cur.sig = ''; cur.ret = ''; cur.outBy = ''; db.vault += cur.amt; return; }
   $('mask').style.display = 'none'; $('q').value = ''; cur = null; render();
 };
 
+// 經手人
+$('staffIn').onclick = pickStaff; $('staffOut').onclick = pickStaff;
+
 // 設定
+$('btnStaff').onclick = function () {
+  var a = $('staffList').value.split(/[、,，\s]+/), out = [], i;
+  for (i = 0; i < a.length; i++) if (a[i] && out.indexOf(a[i]) < 0) out.push(a[i]);
+  if (!out.length) { alert('名單不能是空的'); return; }
+  db.staff = out; if (out.indexOf(db.cur) < 0) db.cur = '';
+  save(); render(); alert('名單已儲存');
+};
 $('btnAdj').onclick = function () {
   var v = parseInt($('adj').value, 10);
   if (!v) return;
@@ -281,7 +349,7 @@ $('btnImp').onclick = function () {
   var d; try { d = JSON.parse($('bak').value); } catch (e) {}
   if (!d || !d.items) { alert('備份文字不正確'); return; }
   if (!confirm('確定覆蓋現有資料？')) return;
-  db = d; save(); render(); alert('已還原');
+  db = d; fix(); save(); render(); alert('已還原');
 };
 if (!canStore) {
   var w = document.createElement('div');
